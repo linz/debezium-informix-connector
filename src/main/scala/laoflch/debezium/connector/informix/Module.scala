@@ -5,9 +5,10 @@ import io.debezium.util.IoUtil
 
 
 object Module {
-    private val INFO = IoUtil.loadProperties(classOf[Module], "laoflch/debezium/connector/informix/build.version")
+    //private val INFO = IoUtil.loadProperties(classOf[Module], "laoflch/debezium/connector/informix/build.version")
 
-    def version: String = {INFO.getProperty("version")}
+    //def version: String = {INFO.getProperty("version")}
+    def version: String = {"1.1.1.Final"}
 
     /**
      * @return symbolic name of the connector plugin

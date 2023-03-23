@@ -3,7 +3,6 @@ package laoflch.debezium.connector.informix
 import java.time.Instant
 import java.util
 import java.util.Collections
-
 import com.informix.jdbc.IfmxReadableType
 import com.informix.stream.api.IfmxStreamRecordType
 import com.informix.stream.cdc.records.{IfxCDCMetaDataRecord, IfxCDCRecord}
@@ -13,7 +12,9 @@ import io.debezium.pipeline.txmetadata.TransactionContext
 import io.debezium.relational.TableId
 import io.debezium.schema.DataCollectionId
 import io.debezium.util.Collect
+import laoflch.debezium.connector.informix.InformixCDCEngine.LOGGER
 import org.apache.kafka.connect.data.{Schema, Struct}
+import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters
@@ -26,6 +27,7 @@ class InformixOffsetContext(connectorConfig: InformixConnectorConfig,
                             //var eventSerialNo: Long,
                             transactionContext: TransactionContext) extends OffsetContext {
 
+  protected val LOGGER = LoggerFactory.getLogger(classOf[InformixOffsetContext])
 
   private val sourceInfo: SourceInfo = new SourceInfo(connectorConfig)
   private val sourceInfoSchema: Schema = sourceInfo.schema()
@@ -93,6 +95,9 @@ class InformixOffsetContext(connectorConfig: InformixConnectorConfig,
       }
       this.cdcEngine.init()
     }
+
+    LOGGER.info("=========================== preSnapshotStart : =========================== ");
+
     this.cdcEngine.stream((record)=>{
 
       //print(record)
@@ -171,13 +176,15 @@ class InformixOffsetContext(connectorConfig: InformixConnectorConfig,
   def setChangePosition(position: TxLogPosition): Unit = {
     /*if (getChangePosition == position) eventSerialNo += eventCount
     else eventSerialNo = eventCount*/
-    sourceInfo.setCommitLsn(position.getCommitLsn)
-    sourceInfo.setChangeLsn(position.getChangeLsn)
 
-    sourceInfo.setTxId(position.getTxId)
-    sourceInfo.setBeginLsn(position.getBeginLsn)
+    if (position != null) {
+      sourceInfo.setCommitLsn(position.getCommitLsn)
+      sourceInfo.setChangeLsn(position.getChangeLsn)
+
+      sourceInfo.setTxId(position.getTxId)
+      sourceInfo.setBeginLsn(position.getBeginLsn)
+    }
   }
-
 }
 
 
@@ -191,12 +198,25 @@ object InformixOffsetContext {
 
 
   class Loader(val connectorConfig: InformixConnectorConfig) extends OffsetContext.Loader {
+
+    protected val LOGGER = LoggerFactory.getLogger(classOf[Loader])
+
     override def getPartition: util.Map[String, _] = Collections.singletonMap(SERVER_PARTITION_KEY, connectorConfig.getLogicalName)
 
     override def load(offset: util.Map[String, _]): OffsetContext = {
+
+      LOGGER.info("=========================== Loader.load : =========================== ");
+
       //val changeLsn = Lsn.valueOf(offset.get(SourceInfo.CHANGE_LSN_KEY).asInstanceOf[String])
       //val commitLsn = Lsn.valueOf(offset.get(SourceInfo.COMMIT_LSN_KEY).asInstanceOf[String])offset
-      val lsn = offset.get(SourceInfo.CHANGE_LSN_KEY).asInstanceOf[TxLogPosition]
+
+      var lsn: TxLogPosition = null
+      if (offset.get(SourceInfo.CHANGE_LSN_KEY) != null) {
+        val lsnLong = offset.get(SourceInfo.CHANGE_LSN_KEY).asInstanceOf[String].toLong;
+        lsn = TxLogPosition.valueOf(lsnLong)
+        LOGGER.info("LSN Long: {} LSN Object: {}", lsnLong, lsn);
+      }
+      //val lsn = offset.get(SourceInfo.CHANGE_LSN_KEY).asInstanceOf[TxLogPosition]
       val snapshot = java.lang.Boolean.TRUE.equals(offset.get(SourceInfo.SNAPSHOT_KEY))
       val snapshotCompleted = java.lang.Boolean.TRUE.equals(offset.get(SNAPSHOT_COMPLETED_KEY))
       // only introduced in 0.10.Beta1, so it might be not present when upgrading from earlier versions

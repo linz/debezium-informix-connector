@@ -2,8 +2,7 @@ package laoflch.debezium.connector.informix
 
 import java.sql.{Connection, ResultSet, SQLException, Savepoint, Statement}
 import java.util
-import java.util.{Optional, Set}
-
+import java.util.{Collections, Optional, Set}
 import io.debezium.pipeline.EventDispatcher
 import io.debezium.pipeline.source.AbstractSnapshotChangeEventSource
 import io.debezium.pipeline.source.spi.{ChangeEventSource, SnapshotProgressListener}
@@ -50,17 +49,17 @@ class InformixSnapshotChangeEventSource(connectorConfig: InformixConnectorConfig
     var snapshotSchema = true
     var snapshotData = true
     // found a previous offset and the earlier snapshot has completed
-    if (previousOffset != null && !previousOffset.isSnapshotRunning) {
+/*    if (previousOffset != null && !previousOffset.isSnapshotRunning) {
       LOGGER.info("A previous offset indicating a completed snapshot has been found. Neither schema nor data will be snapshotted.")
       snapshotSchema = false
       snapshotData = false
     }
-    else {
+    else {*/
       LOGGER.info("No previous offset has been found")
       if (connectorConfig.getSnapshotMode.includeData) LOGGER.info("According to the connector configuration both schema and data will be snapshotted")
       else LOGGER.info("According to the connector configuration only schema will be snapshotted")
       snapshotData = connectorConfig.getSnapshotMode.includeData
-    }
+    //}
     new AbstractSnapshotChangeEventSource.SnapshottingTask(snapshotSchema, snapshotData)
   }
 
@@ -127,12 +126,26 @@ class InformixSnapshotChangeEventSource(connectorConfig: InformixConnectorConfig
   @throws[Exception]
   override protected def determineSnapshotOffset(ctx: RelationalSnapshotChangeEventSource.RelationalSnapshotContext): Unit = {
     //jdbcConnection
+    LOGGER.info("previousOffset object to check ::: {}", previousOffset);
 
-    val offset=new InformixOffsetContext(connectorConfig, TxLogPosition.NULL, false, false, TransactionContext.load(new util.HashMap[String,Any]()))
+    var lsn : TxLogPosition = TxLogPosition.NULL;
+    if (previousOffset != null) {
+      val localOffset = previousOffset.getOffset();
+
+      val lsnLong = localOffset.get(SourceInfo.COMMIT_LSN_KEY).asInstanceOf[String].toLong;
+
+      if (lsnLong > 0) {
+        lsn = TxLogPosition.valueOf(lsnLong)
+      }
+
+      val commitLsn = localOffset.get("commit_lsn");
+      val changeLsn = localOffset.get("change_lsn");
+      LOGGER.info("commitLsn : {}, changeLsn {} LSN {}", commitLsn, changeLsn, lsn);
+    }
+
+    val offset=new InformixOffsetContext(connectorConfig, lsn, false, false, TransactionContext.load(new util.HashMap[String,Any]()))
     offset.setCDCEngine(jdbcConnection.getCDCEngine())
     ctx.offset = offset
-
-
   }
 
   @throws[SQLException]
@@ -149,6 +162,9 @@ class InformixSnapshotChangeEventSource(connectorConfig: InformixConnectorConfig
     for (schema <- schemas) {
       if (!sourceContext.isRunning) throw new InterruptedException("Interrupted while reading structure of schema " + schema)
       LOGGER.info("Reading structure of schema '{}'", schema)
+      LOGGER.info("Reading snapshotContext.tables '{}'", snapshotContext.tables)
+      LOGGER.info("Reading snapshotContext.catalogName '{}'", snapshotContext.catalogName)
+      LOGGER.info("Reading connectorConfig.getTableFilters.dataCollectionFilter '{}'", connectorConfig.getTableFilters.dataCollectionFilter)
       jdbcConnection.readSchema(snapshotContext.tables, snapshotContext.catalogName, schema, connectorConfig.getTableFilters.dataCollectionFilter, null, false)
     }
 

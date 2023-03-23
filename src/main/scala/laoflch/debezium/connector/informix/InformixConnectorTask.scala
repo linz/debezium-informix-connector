@@ -91,6 +91,8 @@ class InformixConnectorTask extends BaseSourceTask {
     schema.initializeStorage()
 
     val previousOffset = getPreviousOffset(new (InformixOffsetContext.Loader)(connectorConfig))
+    InformixConnectorTask.LOGGER.info("Previous  offset value: {}", previousOffset)
+
     if (previousOffset != null) schema.recover(previousOffset)
 
 
@@ -138,9 +140,13 @@ class InformixConnectorTask extends BaseSourceTask {
    */
   override protected def getPreviousOffset(loader: OffsetContext.Loader): OffsetContext = {
     val partition = loader.getPartition
+    InformixConnectorTask.LOGGER.info("Raw partition {}", partition);
+
     val previousOffset = context.offsetStorageReader.offsets(Collections.singleton(partition)).get(partition)
 
     //previousOffset.put("",this.dataConnection.getCDCEngine())
+    InformixConnectorTask.LOGGER.info("Raw previous offset {}", previousOffset);
+
     if (previousOffset != null) {
       val offsetContext = loader.load(previousOffset)
       InformixConnectorTask.LOGGER.info("Found previous offset {}", offsetContext)

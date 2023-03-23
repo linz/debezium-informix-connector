@@ -63,7 +63,10 @@ object InformixConnectorTest {
 
   def main(args: Array[String]): Unit ={
      //testInfromixNative()
-    //testInformixdz()
+     val strBuffer = Unpooled.buffer()
+    val props:Properties = new Properties()
+
+    testInformixdz(props, strBuffer)
     //testInformixJdbc()
 
   }
@@ -141,26 +144,61 @@ object InformixConnectorTest {
 
   //def testInformixdz(): Unit ={
   def testInformixdz(props:Properties,strBuf: ByteBuf): Unit ={
-      val props:Properties = new Properties()
-      props.setProperty("name", "engine")
-      props.setProperty("offset.storage", "org.apache.kafka.connect.storage.FileOffsetBackingStore")
-      props.setProperty("connector.class","laoflch.debezium.connector.informix.InformixConnector")
-      props.setProperty("offset.storage.file.filename", "/tmp/offsets.dat")
-      props.setProperty("offset.flush.interval.ms", "60000")
-      /* begin connector properties */
-      props.setProperty("database.server.name", "informix-test")
-      //props.setProperty("database.hostname","192.168.0.213")
-      props.setProperty("database.hostname","172.17.0.2")
-      props.setProperty("database.port", "9998")
-      props.setProperty("database.user", "informix")
-      props.setProperty("database.password", "informix")
-      props.setProperty("database.dbname","test")
-      //props.setProperty("database.server.id", "89")
-      //props.setProperty("database.server.name", "my-app-connector")
-      props.setProperty("database.history", "io.debezium.relational.history.FileDatabaseHistory")
-      props.setProperty("database.history.file.filename", "/tmp/dbhistory.dat")
+    props.setProperty("name", "informix-connector")
+    props.setProperty("connector.class", "laoflch.debezium.connector.informix.InformixConnector")
+    props.setProperty("tasks.max", "1")
+    props.setProperty("database.server.name", "informix")
+    props.setProperty("topic.prefix", "db-history.testdb")
+    props.setProperty("database.hostname", "127.0.0.1")
+    props.setProperty("database.port", "9088")
+    props.setProperty("database.user", "informix")
+    props.setProperty("database.password", "in4mix")
+    props.setProperty("database.dbname", "testdb")
+    props.setProperty("database.include.list", "testdb")
+    props.setProperty("database.history.kafka.topic", "db-history.testdb")
+    props.setProperty("database.history.kafka.bootstrap.servers", "localhost:9092")
+    props.setProperty("schema.history.internal.kafka.bootstrap.servers", "localhost:9092")
+    props.setProperty("schema.history.internal.kafka.topic", "schema-history.testdb")
+    props.setProperty("transforms", "route")
+    props.setProperty("transforms.route.type", "org.apache.kafka.connect.transforms.RegexRouter")
+    props.setProperty("transforms.route.regex", "([^.]+)\\.([^.]+)\\.([^.]+)")
+    props.setProperty("transforms.route.replacement", "$3")
 
-      props.setProperty("message.key.columns","test.informix.customer:customer_num")
+
+    props.setProperty("signal.data.collection", "informix.cdcTable")
+    props.setProperty("table.include.list", "informix.cdcTable")
+    props.setProperty("snapshot.include.collection.list", "informix.cdcTable")
+    props.setProperty("database.server.id", "89")
+    props.setProperty("message.key.columns", "informix.cdcTable:a,b")
+    props.setProperty("snapshot.mode", "initial")
+    props.setProperty("bootstrap.servers", "localhost:9092")
+    props.setProperty("key.converter", "org.apache.kafka.connect.json.JsonConverter")
+    props.setProperty("value.converter", "org.apache.kafka.connect.json.JsonConverter")
+    props.setProperty("key.converter.schemas.enable", "true")
+    props.setProperty("value.converter.schemas.enable", "true")
+    props.setProperty("offset.storage", "org.apache.kafka.connect.storage.FileOffsetBackingStore")
+    props.setProperty("offset.storage.file.filename", "C:/kafka/tmp/informix/connect.offsets")
+    props.setProperty("offset.flush.interval.ms", "10000")
+
+//      props.setProperty("name", "engine")
+//      props.setProperty("offset.storage", "org.apache.kafka.connect.storage.FileOffsetBackingStore")
+//      props.setProperty("connector.class","laoflch.debezium.connector.informix.InformixConnector")
+//      props.setProperty("offset.storage.file.filename", "/tmp/offsets.dat")
+//      props.setProperty("offset.flush.interval.ms", "60000")
+//      /* begin connector properties */
+//      props.setProperty("database.server.name", "informix-test")
+//      //props.setProperty("database.hostname","192.168.0.213")
+//      props.setProperty("database.hostname","172.17.0.2")
+//      props.setProperty("database.port", "9998")
+//      props.setProperty("database.user", "informix")
+//      props.setProperty("database.password", "informix")
+//      props.setProperty("database.dbname","test")
+//      //props.setProperty("database.server.id", "89")
+//      //props.setProperty("database.server.name", "my-app-connector")
+//      props.setProperty("database.history", "io.debezium.relational.history.FileDatabaseHistory")
+//      props.setProperty("database.history.file.filename", "/tmp/dbhistory.dat")
+//
+//      props.setProperty("message.key.columns","test.informix.customer:customer_num")
       //Contoh konfigurasi
       //
       /*    val config = Configuration.create()

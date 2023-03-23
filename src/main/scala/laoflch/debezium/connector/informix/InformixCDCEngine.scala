@@ -1,15 +1,15 @@
 package laoflch.debezium.connector.informix
 
 import java.sql.SQLException
-
 import com.informix.jdbcx.IfxDataSource
 import com.informix.stream.api.IfmxStreamRecord
 import com.informix.stream.cdc.IfxCDCEngine
 import com.informix.stream.cdc.records.IfxCDCRecord
 import com.informix.stream.impl.IfxStreamException
 import io.debezium.relational.TableId
-import InformixCDCEngine.CDCTabeEntry
+import InformixCDCEngine.{CDCTabeEntry, LOGGER}
 import org.apache.kafka.connect.errors.ConnectException
+import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters
@@ -20,6 +20,7 @@ import scala.jdk.CollectionConverters
 
 
 object InformixCDCEngine {
+  protected val LOGGER = LoggerFactory.getLogger(classOf[InformixCDCEngine])
 
   private val URL_PATTERN: String = "jdbc:informix-sqli://%s:%s/syscdcv1:user=%s;password=%s"
 
@@ -41,7 +42,13 @@ object InformixCDCEngine {
   }*/
 
   def watchTableAndCols(watchTables: Map[String,CDCTabeEntry],builder:IfxCDCEngine.Builder): Unit={
-    watchTables.foreach(tuple=>builder.watchTable(tuple._1,tuple._2.tableCols:_*))
+    watchTables.foreach(tuple=> {
+      LOGGER.info("tuple._1 {}", tuple._1);
+      LOGGER.info("tuple {}", tuple);
+      LOGGER.info("tuple2 {}", tuple._2.tableCols: _*);
+      builder.watchTable(tuple._1, tuple._2.tableCols: _*)
+
+    })
     //foreach  says argument is tuple -> unit, so We can easily do below
     //https://stackoverflow.com/questions/8610776/scala-map-foreach for more info
   }
@@ -57,6 +64,7 @@ object InformixCDCEngine {
     //val ds = new IfxDataSource(url)
     val builder = new IfxCDCEngine.Builder(new IfxDataSource(url))
 
+    LOGGER.info("tableAndCols: {} ", tableAndCols);
     watchTableAndCols(tableAndCols,builder)
 
     builder.sequenceId(lsn)
@@ -110,10 +118,18 @@ class InformixCDCEngine(host: String
 
       val url = InformixCDCEngine.genURLStr(host,port,dataBase,user,password)
 
+      LOGGER.info("url: {}", url);
+      LOGGER.info("watchTableAndCols:::: {}" , this.watchTableAndCols);
+      LOGGER.info("lsn: {}" , this.lsn);
+      LOGGER.info("timeOut: {}", timeOut);
+
       val ent = InformixCDCEngine.buildCDCEngine(url,this.watchTableAndCols,this.lsn,timeOut)
 
       this.cdcEngine=ent._1
       this.tables=ent._2
+
+      LOGGER.info("tables: {}", this.tables);
+
 
       try {
         this.cdcEngine.init()
@@ -137,12 +153,27 @@ class InformixCDCEngine(host: String
 
   }
 
+/*
   def stream(func:(IfmxStreamRecord)=>Boolean): Unit ={
+    var myVal = if (cdcEngine != null) cdcEngine.getRecord else null;
+    LOGGER.info("IfmxStreamRecord myVal: ", myVal);
 
-    while(func(cdcEngine.getRecord)){
-      //Thread.sleep(1000)
+    if (cdcEngine != null && cdcEngine.getRecord != null) {
+      while (func(cdcEngine.getRecord)) {
+        Thread.sleep(1000)
+      }
     }
 
+    Thread.sleep(1000)
+  }
+*/
+
+  def stream(func: (IfmxStreamRecord) => Boolean): Unit = {
+    if (cdcEngine != null) {
+      while (func(cdcEngine.getRecord)) {
+        Thread.sleep(500)
+      }
+    }
   }
 
   def setStartLsn(startLsn:Long):Long ={
@@ -154,14 +185,14 @@ class InformixCDCEngine(host: String
 
    // val tableLabel=Map[Int,TableId]()
 
-    this.tables.map[(Int,TableId)](x=>{
-      val id=x.getDatabaseName+":"+x.getNamespace+":"+x.getTableName
-      x.getLabel->this.watchTableAndCols(id).tableId
-    }).toMap
-
-
+    if (this.tables != null && !this.tables.isEmpty) {
+      return this.tables.map[(Int, TableId)](x => {
+        val id = x.getDatabaseName + ":" + x.getNamespace + ":" + x.getTableName
+        x.getLabel -> this.watchTableAndCols(id).tableId
+      }).toMap
+    }
+    return null;
     //tableLabel
-
   }
 
   def setWatchTableAndCols(wtac:Map[String,CDCTabeEntry]): Unit =this.watchTableAndCols=wtac

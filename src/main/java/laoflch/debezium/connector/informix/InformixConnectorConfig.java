@@ -12,6 +12,7 @@ import java.util.function.Predicate;
 
 import io.debezium.connector.db2.Lsn;
 import io.debezium.connector.db2.SourceInfo;
+import io.debezium.util.Strings;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -35,6 +36,8 @@ import io.debezium.relational.Tables.ColumnNameFilter;
 import io.debezium.relational.Tables.TableFilter;
 import io.debezium.relational.history.HistoryRecordComparator;
 import io.debezium.relational.history.KafkaDatabaseHistory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The list of configuration options for Informix connector
@@ -348,13 +351,33 @@ public class InformixConnectorConfig extends HistorizedRelationalDatabaseConnect
 
     @Override
     protected HistoryRecordComparator getHistoryRecordComparator() {
+
+        Logger loggerInstance = LoggerFactory.getLogger(InformixConnectorConfig.class);
         return new HistoryRecordComparator() {
             @Override
             protected boolean isPositionAtOrBefore(Document recorded, Document desired) {
-                return Lsn.valueOf(recorded.getString(SourceInfo.CHANGE_LSN_KEY))
-                        .compareTo(Lsn.valueOf(desired.getString(SourceInfo.CHANGE_LSN_KEY))) < 1;
+            /*    return Lsn.valueOf(recorded.getString(SourceInfo.CHANGE_LSN_KEY))
+                        .compareTo(Lsn.valueOf(desired.getString(SourceInfo.CHANGE_LSN_KEY))) < 1;*/
+
+                String recordStr = recorded.getString(SourceInfo.CHANGE_LSN_KEY);
+                String desiredStr = desired.getString(SourceInfo.CHANGE_LSN_KEY);
+
+                loggerInstance.info("---------recordStr--------- {} ", recordStr);
+                loggerInstance.info("---------desiredStr--------- {}", desiredStr);
+
+                /*val lsnLong = offset.get(SourceInfo.CHANGE_LSN_KEY).asInstanceOf[String].toLong;
+                val lsn = TxLogPosition.valueOf(lsnLong)
+
+                loggerInstance.info("---------recordStr---------", recordStr);
+                loggerInstance.info("---------recordStr---------", recordStr);*/
+                return getLsn(recordStr)
+                        .compareTo(getLsn(desiredStr)) < 1;
             }
         };
+    }
+
+    private static Lsn getLsn(String lsnString) {
+        return lsnString != null && !"NULL".equals(lsnString) && !"-1".equals(lsnString) && lsnString.length() > 1 ?  Lsn.valueOf(Strings.hexStringToByteArray(lsnString.replace(":", ""))) : Lsn.NULL;
     }
 
     @Override
